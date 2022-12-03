@@ -51,7 +51,6 @@ import (
 	"github.com/TykTechnologies/tyk/cli"
 	"github.com/TykTechnologies/tyk/config"
 	"github.com/TykTechnologies/tyk/dnscache"
-	"github.com/TykTechnologies/tyk/headers"
 	logger "github.com/TykTechnologies/tyk/log"
 	"github.com/TykTechnologies/tyk/regexp"
 	"github.com/TykTechnologies/tyk/rpc"
@@ -595,7 +594,7 @@ func (gw *Gateway) loadControlAPIEndpoints(muxer *mux.Router) {
 
 	r := mux.NewRouter()
 	muxer.PathPrefix("/tyk/").Handler(http.StripPrefix("/tyk",
-		stripSlashes(gw.checkIsAPIOwner(gw.controlAPICheckClientCertificate("/gateway/client", InstrumentationMW(r)))),
+		stripSlashes(gw.controlAPICheckClientCertificate("/gateway/client", InstrumentationMW(r))),
 	))
 
 	if hostname != "" {
@@ -613,77 +612,53 @@ func (gw *Gateway) loadControlAPIEndpoints(muxer *mux.Router) {
 	mainLog.Info("Initialising Tyk REST API Endpoints")
 
 	// set up main API handlers
-	r.HandleFunc("/reload/group", gw.groupResetHandler).Methods("GET")
-	r.HandleFunc("/reload", gw.resetHandler(nil)).Methods("GET")
+	r.HandleFunc("/reload/group", gw.groupResetHandler).Methods(http.MethodGet)
+	r.HandleFunc("/reload", gw.resetHandler(nil)).Methods(http.MethodGet)
 
-	if !gw.isRPCMode() {
-		r.HandleFunc("/org/keys", gw.orgHandler).Methods("GET")
-		r.HandleFunc("/org/keys/{keyName:[^/]*}", gw.orgHandler).Methods("POST", "PUT", "GET", "DELETE")
-		r.HandleFunc("/keys/policy/{keyName}", gw.policyUpdateHandler).Methods("POST")
-		r.HandleFunc("/keys/create", gw.createKeyHandler).Methods("POST")
-		r.HandleFunc("/apis", gw.apiHandler).Methods(http.MethodGet)
-		r.HandleFunc("/apis", gw.blockInDashboardMode(gw.apiHandler)).Methods(http.MethodPost)
-		r.HandleFunc("/apis/oas", gw.apiOASGetHandler).Methods(http.MethodGet)
-		r.HandleFunc("/apis/oas", gw.blockInDashboardMode(gw.validateOAS(gw.apiOASPostHandler))).Methods(http.MethodPost)
-		r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodGet)
-		r.HandleFunc("/apis/{apiID}", gw.blockInDashboardMode(gw.apiHandler)).Methods(http.MethodPost)
-		r.HandleFunc("/apis/{apiID}", gw.blockInDashboardMode(gw.apiHandler)).Methods(http.MethodPut)
-		r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodDelete)
-		r.HandleFunc("/apis/oas/export", gw.apiOASExportHandler).Methods("GET")
-		r.HandleFunc("/apis/oas/import", gw.blockInDashboardMode(gw.validateOAS(gw.makeImportedOASTykAPI(gw.apiOASPostHandler)))).Methods(http.MethodPost)
-		r.HandleFunc("/apis/oas/{apiID}", gw.apiOASGetHandler).Methods(http.MethodGet)
-		r.HandleFunc("/apis/oas/{apiID}", gw.blockInDashboardMode(gw.validateOAS(gw.apiOASPutHandler))).Methods(http.MethodPut)
-		r.HandleFunc("/apis/oas/{apiID}", gw.blockInDashboardMode(gw.validateOAS(gw.apiOASPatchHandler))).Methods(http.MethodPatch)
-		r.HandleFunc("/apis/oas/{apiID}", gw.blockInDashboardMode(gw.apiHandler)).Methods(http.MethodDelete)
-		r.HandleFunc("/apis/oas/{apiID}/export", gw.apiOASExportHandler).Methods("GET")
-		r.HandleFunc("/health", gw.healthCheckhandler).Methods("GET")
-		r.HandleFunc("/policies", gw.polHandler).Methods("GET", "POST", "PUT", "DELETE")
-		r.HandleFunc("/policies/{polID}", gw.polHandler).Methods("GET", "POST", "PUT", "DELETE")
-		r.HandleFunc("/oauth/clients/create", gw.createOauthClient).Methods("POST")
-		r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}", gw.oAuthClientHandler).Methods("PUT")
-		r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}/rotate", gw.rotateOauthClientHandler).Methods("PUT")
-		r.HandleFunc("/oauth/clients/apis/{appID}", gw.getApisForOauthApp).Queries("orgID", "{[0-9]*?}").Methods("GET")
-		r.HandleFunc("/oauth/refresh/{keyName}", gw.invalidateOauthRefresh).Methods("DELETE")
-		r.HandleFunc("/oauth/revoke", gw.RevokeTokenHandler).Methods("POST")
-		r.HandleFunc("/oauth/revoke_all", gw.RevokeAllTokensHandler).Methods("POST")
+	r.HandleFunc("/org/keys", gw.orgHandler).Methods(http.MethodGet)
+	r.HandleFunc("/org/keys/{keyName:[^/]*}", gw.orgHandler).Methods(http.MethodPost, http.MethodPut, http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/keys/policy/{keyName}", gw.policyUpdateHandler).Methods(http.MethodPost)
+	r.HandleFunc("/keys/create", gw.createKeyHandler).Methods(http.MethodPost)
+	r.HandleFunc("/apis", gw.apiHandler).Methods(http.MethodGet)
+	r.HandleFunc("/apis", gw.apiHandler).Methods(http.MethodPost)
+	r.HandleFunc("/apis/oas", gw.apiOASGetHandler).Methods(http.MethodGet)
+	r.HandleFunc("/apis/oas", gw.validateOAS(gw.apiOASPostHandler)).Methods(http.MethodPost)
+	r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodGet)
+	r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodPost)
+	r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodPut)
+	r.HandleFunc("/apis/{apiID}", gw.apiHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/apis/oas/export", gw.apiOASExportHandler).Methods(http.MethodGet)
+	r.HandleFunc("/apis/oas/import", gw.validateOAS(gw.makeImportedOASTykAPI(gw.apiOASPostHandler))).Methods(http.MethodPost)
+	r.HandleFunc("/apis/oas/{apiID}", gw.apiOASGetHandler).Methods(http.MethodGet)
+	r.HandleFunc("/apis/oas/{apiID}", gw.validateOAS(gw.apiOASPutHandler)).Methods(http.MethodPut)
+	r.HandleFunc("/apis/oas/{apiID}", gw.validateOAS(gw.apiOASPatchHandler)).Methods(http.MethodPatch)
+	r.HandleFunc("/apis/oas/{apiID}", gw.apiHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/apis/oas/{apiID}/export", gw.apiOASExportHandler).Methods(http.MethodGet)
+	r.HandleFunc("/health", gw.healthCheckhandler).Methods(http.MethodGet)
+	r.HandleFunc("/policies", gw.polHandler).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+	r.HandleFunc("/policies/{polID}", gw.polHandler).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+	r.HandleFunc("/oauth/clients/create", gw.createOauthClient).Methods(http.MethodPost)
+	r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}", gw.oAuthClientHandler).Methods(http.MethodPut)
+	r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}/rotate", gw.rotateOauthClientHandler).Methods(http.MethodPut)
+	r.HandleFunc("/oauth/clients/apis/{appID}", gw.getApisForOauthApp).Queries("orgID", "{[0-9]*?}").Methods(http.MethodGet)
+	r.HandleFunc("/oauth/refresh/{keyName}", gw.invalidateOauthRefresh).Methods(http.MethodDelete)
+	r.HandleFunc("/oauth/revoke", gw.RevokeTokenHandler).Methods(http.MethodPost)
+	r.HandleFunc("/oauth/revoke_all", gw.RevokeAllTokensHandler).Methods(http.MethodPost)
 
-	} else {
-		mainLog.Info("Node is slaved, REST API minimised")
-	}
-
-	r.HandleFunc("/debug", gw.traceHandler).Methods("POST")
-	r.HandleFunc("/cache/{apiID}", gw.invalidateCacheHandler).Methods("DELETE")
-	r.HandleFunc("/keys", gw.keyHandler).Methods("POST", "PUT", "GET", "DELETE")
-	r.HandleFunc("/keys/preview", gw.previewKeyHandler).Methods("POST")
-	r.HandleFunc("/keys/{keyName:[^/]*}", gw.keyHandler).Methods("POST", "PUT", "GET", "DELETE")
-	r.HandleFunc("/certs", gw.certHandler).Methods("POST", "GET")
-	r.HandleFunc("/certs/{certID:[^/]*}", gw.certHandler).Methods("POST", "GET", "DELETE")
-	r.HandleFunc("/oauth/clients/{apiID}", gw.oAuthClientHandler).Methods("GET", "DELETE")
-	r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}", gw.oAuthClientHandler).Methods("GET", "DELETE")
-	r.HandleFunc("/oauth/clients/{apiID}/{keyName}/tokens", gw.oAuthClientTokensHandler).Methods("GET")
+	r.HandleFunc("/debug", gw.traceHandler).Methods(http.MethodPost)
+	r.HandleFunc("/cache/{apiID}", gw.invalidateCacheHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/keys", gw.keyHandler).Methods(http.MethodPost, http.MethodPut, http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/keys/preview", gw.previewKeyHandler).Methods(http.MethodPost)
+	r.HandleFunc("/keys/{keyName:[^/]*}", gw.keyHandler).Methods(http.MethodPost, http.MethodPut, http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/certs", gw.certHandler).Methods(http.MethodPost, http.MethodGet)
+	r.HandleFunc("/certs/{certID:[^/]*}", gw.certHandler).Methods(http.MethodPost, http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/oauth/clients/{apiID}", gw.oAuthClientHandler).Methods(http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}", gw.oAuthClientHandler).Methods(http.MethodGet, http.MethodDelete)
+	r.HandleFunc("/oauth/clients/{apiID}/{keyName}/tokens", gw.oAuthClientTokensHandler).Methods(http.MethodGet)
 
 	r.HandleFunc("/schema", gw.schemaHandler).Methods(http.MethodGet)
 
 	mainLog.Debug("Loaded API Endpoints")
-}
-
-// checkIsAPIOwner will ensure that the accessor of the tyk API has the
-// correct security credentials - this is a shared secret between the
-// client and the owner and is set in the tyk.conf file. This should
-// never be made public!
-func (gw *Gateway) checkIsAPIOwner(next http.Handler) http.Handler {
-	secret := gw.GetConfig().Secret
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tykAuthKey := r.Header.Get(headers.XTykAuthorization)
-		if tykAuthKey != secret {
-			// Error
-			mainLog.Warning("Attempted administrative access with invalid or missing key!")
-
-			doJSONWrite(w, http.StatusForbidden, apiError("Attempted administrative access with invalid or missing key!"))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func generateOAuthPrefix(apiID string) string {
@@ -728,7 +703,7 @@ func (gw *Gateway) addOAuthHandlers(spec *APISpec, muxer *mux.Router) *OAuthMana
 	oauthManager := OAuthManager{spec, osinServer, gw}
 	oauthHandlers := OAuthHandlers{oauthManager}
 
-	muxer.Handle(apiAuthorizePath, gw.checkIsAPIOwner(allowMethods(oauthHandlers.HandleGenerateAuthCodeData, "POST")))
+	muxer.Handle(apiAuthorizePath, allowMethods(oauthHandlers.HandleGenerateAuthCodeData, "POST"))
 	muxer.HandleFunc(clientAuthPath, allowMethods(oauthHandlers.HandleAuthorizePassthrough, "GET", "POST"))
 	muxer.HandleFunc(clientAccessPath, addSecureAndCacheHeaders(allowMethods(oauthHandlers.HandleAccessRequest, "GET", "POST")))
 	muxer.HandleFunc(revokeToken, oauthHandlers.HandleRevokeToken)

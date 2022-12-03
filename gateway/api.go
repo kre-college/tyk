@@ -3,24 +3,24 @@
 // The code below describes the Tyk Gateway API
 // Version: 2.8.0
 //
-//     Schemes: https, http
-//     Host: localhost
-//     BasePath: /tyk/
+//	Schemes: https, http
+//	Host: localhost
+//	BasePath: /tyk/
 //
-//     Consumes:
-//     - application/json
+//	Consumes:
+//	- application/json
 //
-//     Produces:
-//     - application/json
+//	Produces:
+//	- application/json
 //
-//     Security:
-//     - api_key:
+//	Security:
+//	- api_key:
 //
-//     SecurityDefinitions:
-//     api_key:
-//          type: apiKey
-//          name: X-Tyk-Authorization
-//          in: header
+//	SecurityDefinitions:
+//	api_key:
+//	     type: apiKey
+//	     name: X-Tyk-Authorization
+//	     in: header
 //
 // swagger:meta
 package gateway
@@ -384,7 +384,6 @@ func (gw *Gateway) doAddOrUpdate(keyName string, newSession *user.SessionState, 
 // remove from all stores, update to all stores, stores handle quotas separately though because they are localised! Keys will
 // need to be managed by API, but only for GetDetail, GetList, UpdateKey and DeleteKey
 
-//
 func (gw *Gateway) setBasicAuthSessionPassword(session *user.SessionState) {
 	basicAuthHashAlgo := gw.basicAuthHashAlgo()
 
@@ -1796,7 +1795,6 @@ func (gw *Gateway) groupResetHandler(w http.ResponseWriter, r *http.Request) {
 // was in the URL parameters, it will block until the reload is done.
 // Otherwise, it won't block and fn will be called once the reload is
 // finished.
-//
 func (gw *Gateway) resetHandler(fn func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var wg sync.WaitGroup
@@ -2873,17 +2871,6 @@ func (gw *Gateway) validateOAS(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		r.Body = ioutil.NopCloser(bytes.NewReader(reqBodyInBytes))
-		next.ServeHTTP(w, r)
-	}
-}
-
-func (gw *Gateway) blockInDashboardMode(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if gw.GetConfig().UseDBAppConfigs {
-			doJSONWrite(w, http.StatusInternalServerError, apiError("Due to enabled use_db_app_configs, please use the Dashboard API"))
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	}
 }
