@@ -573,38 +573,38 @@ func (gw *Gateway) controlAPICheckClientCertificate(certLevel string, next http.
 }
 
 // loadControlAPIEndpoints loads the endpoints used for controlling the Gateway.
-func (gw *Gateway) loadControlAPIEndpoints(muxer *mux.Router) {
+func (gw *Gateway) loadControlAPIEndpoints() *mux.Router {
+
 	hostname := gw.GetConfig().HostName
 	if gw.GetConfig().ControlAPIHostname != "" {
 		hostname = gw.GetConfig().ControlAPIHostname
 	}
 
-	if muxer == nil {
-		cp := gw.GetConfig().ControlAPIPort
-		muxer = gw.DefaultProxyMux.router(cp, "", gw.GetConfig())
-		if muxer == nil {
-			if cp != 0 {
-				log.Error("Can't find control API router")
-			}
-			return
-		}
-	}
-
-	muxer.HandleFunc("/"+gw.GetConfig().HealthCheckEndpointName, gw.liveCheckHandler)
-
 	r := mux.NewRouter()
-	muxer.PathPrefix("/tyk/").Handler(http.StripPrefix("/tyk",
+	r.HandleFunc("/"+gw.GetConfig().HealthCheckEndpointName, gw.liveCheckHandler)
+
+	r.PathPrefix("/tyk/").Handler(http.StripPrefix("/tyk",
 		stripSlashes(gw.controlAPICheckClientCertificate("/gateway/client", InstrumentationMW(r))),
 	))
 
+	if r == nil {
+		cp := gw.GetConfig().ControlAPIPort
+		r = gw.DefaultProxyMux.router(cp, "", gw.GetConfig())
+		if r == nil {
+			if cp != 0 {
+				log.Error("Can't find control API router")
+			}
+		}
+	}
+
 	if hostname != "" {
-		muxer = muxer.Host(hostname).Subrouter()
+		r = r.Host(hostname).Subrouter()
 		mainLog.Info("Control API hostname set: ", hostname)
 	}
 
 	if *cli.HTTPProfile || gw.GetConfig().HTTPProfile {
-		muxer.HandleFunc("/debug/pprof/profile", pprof_http.Profile)
-		muxer.HandleFunc("/debug/pprof/{_:.*}", pprof_http.Index)
+		r.HandleFunc("/debug/pprof/profile", pprof_http.Profile)
+		r.HandleFunc("/debug/pprof/{_:.*}", pprof_http.Index)
 	}
 
 	r.MethodNotAllowedHandler = MethodNotAllowedHandler{}
@@ -659,6 +659,8 @@ func (gw *Gateway) loadControlAPIEndpoints(muxer *mux.Router) {
 	r.HandleFunc("/schema", gw.schemaHandler).Methods(http.MethodGet)
 
 	mainLog.Debug("Loaded API Endpoints")
+
+	return r
 }
 
 func generateOAuthPrefix(apiID string) string {
@@ -1692,8 +1694,10 @@ func (gw *Gateway) startServer() {
 	// Ensure that Control listener and default http listener running on first start
 	muxer := &proxyMux{}
 
-	router := mux.NewRouter()
-	gw.loadControlAPIEndpoints(router)
+	router := gw.loadControlAPIEndpoints()
+	if router == nil {
+		log.Fatal("Can't find control API router")
+	}
 
 	muxer.setRouter(gw.GetConfig().ControlAPIPort, "", router, gw.GetConfig())
 
