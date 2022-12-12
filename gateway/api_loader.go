@@ -889,9 +889,8 @@ func (gw *Gateway) loadApps(specs []*APISpec) {
 	muxer := &proxyMux{
 		track404Logs: gwConf.Track404Logs,
 	}
-	router := mux.NewRouter()
-	router.NotFoundHandler = http.HandlerFunc(muxer.handle404)
-	gw.loadControlAPIEndpoints(router)
+
+	router := gw.loadControlAPIEndpoints()
 
 	muxer.setRouter(port, "", router, gw.GetConfig())
 
