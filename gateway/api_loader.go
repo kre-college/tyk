@@ -3,6 +3,11 @@ package gateway
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/TykTechnologies/tyk/config"
+
+	"github.com/gorilla/mux"
+	"github.com/justinas/alice"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -14,10 +19,6 @@ import (
 	"strings"
 	"sync"
 	"text/template"
-
-	"github.com/gorilla/mux"
-	"github.com/justinas/alice"
-	"github.com/sirupsen/logrus"
 
 	"github.com/TykTechnologies/tyk/apidef"
 	"github.com/TykTechnologies/tyk/coprocess"
@@ -890,7 +891,14 @@ func (gw *Gateway) loadApps(specs []*APISpec) {
 		track404Logs: gwConf.Track404Logs,
 	}
 
-	router := gw.loadControlAPIEndpoints()
+	db, err := NewDatabase(config.MongoConfigPath)
+	if err != nil {
+		log.Fatalf("cant createa db, err: %s", err)
+	}
+
+	service := NewService(db)
+
+	router := gw.loadControlAPIEndpoints(service)
 
 	muxer.setRouter(port, "", router, gw.GetConfig())
 
