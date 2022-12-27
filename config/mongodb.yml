@@ -1,0 +1,5 @@
+config:
+  schema: "mongodb"
+  host: "mongo"
+  port: "27017"
+  database: "tyk_analytics"

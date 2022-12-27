@@ -1,4 +1,5 @@
 version: '3.3'
+
 services:
   tyk:
     container_name: "tyk"
@@ -7,15 +8,34 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-
+    volumes:
+      - ./config/mongodb.yml:/opt/tyk-gateway/mongodb.yml:ro
+    networks:
+      - tyk
 
   redis:
     image: redis:4.0-alpine
-    networks: [ proxy ]
     ports:
     - 6379:6379
     command: redis-server --appendonly yes
+    networks:
+      - tyk
+
+  mongo:
+    container_name: mongo
+    image: mongo:4.0
+    command: [ "mongod", "--smallfiles" ]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: tyk_analytics
+    volumes:
+      - db-data:/data/db
+    networks:
+      - tyk
+
+volumes:
+  db-data:
 
 networks:
-  proxy:
-    driver: bridge
+  tyk:

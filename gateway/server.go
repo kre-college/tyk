@@ -573,7 +573,7 @@ func (gw *Gateway) controlAPICheckClientCertificate(certLevel string, next http.
 }
 
 // loadControlAPIEndpoints loads the endpoints used for controlling the Gateway.
-func (gw *Gateway) loadControlAPIEndpoints() *mux.Router {
+func (gw *Gateway) loadControlAPIEndpoints(service *Service) *mux.Router {
 
 	hostname := gw.GetConfig().HostName
 	if gw.GetConfig().ControlAPIHostname != "" {
@@ -635,7 +635,8 @@ func (gw *Gateway) loadControlAPIEndpoints() *mux.Router {
 	r.HandleFunc("/apis/oas/{apiID}", gw.apiHandler).Methods(http.MethodDelete)
 	r.HandleFunc("/apis/oas/{apiID}/export", gw.apiOASExportHandler).Methods(http.MethodGet)
 	r.HandleFunc("/health", gw.healthCheckhandler).Methods(http.MethodGet)
-	r.HandleFunc("/policies", gw.polHandler).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
+	r.HandleFunc("/policies", gw.polHandler).Methods(http.MethodGet, http.MethodPut, http.MethodDelete)
+	r.HandleFunc("/policies", CreatePolicy(service)).Methods(http.MethodPost)
 	r.HandleFunc("/policies/{polID}", gw.polHandler).Methods(http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete)
 	r.HandleFunc("/oauth/clients/create", gw.createOauthClient).Methods(http.MethodPost)
 	r.HandleFunc("/oauth/clients/{apiID}/{keyName:[^/]*}", gw.oAuthClientHandler).Methods(http.MethodPut)
@@ -1691,13 +1692,19 @@ func (gw *Gateway) setupPortsWhitelist() {
 }
 
 func (gw *Gateway) startServer() {
-	// Ensure that Control listener and default http listener running on first start
-	muxer := &proxyMux{}
+	db, err := NewDatabase(config.MongoConfigPath)
+	if err != nil {
+		log.Printf("Cant createa db, err: %s", err)
+	}
 
-	router := gw.loadControlAPIEndpoints()
+	service := NewService(db)
+
+	router := gw.loadControlAPIEndpoints(service)
 	if router == nil {
 		log.Fatal("Can't find control API router")
 	}
+
+	muxer := &proxyMux{}
 
 	muxer.setRouter(gw.GetConfig().ControlAPIPort, "", router, gw.GetConfig())
 

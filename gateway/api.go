@@ -895,11 +895,6 @@ func (gw *Gateway) handleGetPolicyList() (interface{}, int) {
 }
 
 func (gw *Gateway) handleAddOrUpdatePolicy(polID string, r *http.Request) (interface{}, int) {
-	if gw.GetConfig().Policies.PolicySource == "service" {
-		log.Error("Rejected new policy due to PolicySource = service")
-		return apiError("Due to enabled service policy source, please use the Dashboard API"), http.StatusInternalServerError
-	}
-
 	newPol := &user.Policy{}
 	if err := json.NewDecoder(r.Body).Decode(newPol); err != nil {
 		log.Error("Couldn't decode new policy object: ", err)
@@ -1229,6 +1224,32 @@ func (gw *Gateway) handleDeleteAPI(apiID string) (interface{}, int) {
 	}
 
 	return response, http.StatusOK
+}
+
+func CreatePolicy(service *Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			doJSONWrite(w, http.StatusInternalServerError, err)
+			return
+		}
+		defer r.Body.Close()
+
+		policy := &user.Policy{}
+		err = json.Unmarshal(b, policy)
+		if err != nil {
+			doJSONWrite(w, http.StatusBadRequest, err)
+			return
+		}
+
+		err = service.CreatePolicy(r.Context(), policy)
+		if err != nil {
+			doJSONWrite(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 func (gw *Gateway) polHandler(w http.ResponseWriter, r *http.Request) {
